@@ -1,0 +1,254 @@
+version: '3.7'
+
+networks:
+  dev-front-net:
+    external: true
+    
+volumes:
+  mysql:
+  elasticsearch:
+
+services:
+  nginx:
+    restart: 'no'
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+      args:
+        USER_ID: ${USER_ID}
+        GROUP_ID: ${GROUP_ID}
+        TAG: ${NGINX_VERSION}
+    volumes:
+      - ./${CODE_PATH}:/var/www/public:rw
+      - ./docker/nginx/etc/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx/etc/snippets:/etc/nginx/snippets:ro
+    hostname: ${PROJECT_DOMAIN}
+    networks:
+      default:
+      dev-front-net:
+        aliases:
+          - ${PROJECT_DOMAIN}
+    expose:
+      - 80
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dev-front-net
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-nginx.service=${COMPOSE_PROJECT_NAME}-nginx
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-nginx.entrypoints=http
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-nginx.rule=Host("${PROJECT_DOMAIN}")
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}-nginx.loadbalancer.server.port=80
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}-nginx.loadbalancer.server.scheme=http
+
+#  nginx-ssl:
+#    restart: 'no'
+#    build:
+#      context: ./docker/nginx-${NGINX_VERSION}
+#      dockerfile: Dockerfile
+#      args:
+#        USER_ID: ${USER_ID}
+#        GROUP_ID: ${GROUP_ID}
+#        TAG: ${NGINX_VERSION}
+##    depends_on:
+##      - varnish
+#    volumes:
+#      - ./${CODE_PATH}:/var/www/public:rw
+#      - ./docker/nginx-ssl-${NGINX_VERSION}/etc/default.conf:/etc/nginx/conf.d/default.conf:ro
+#      - ./docker/nginx-ssl-${NGINX_VERSION}/etc/ssl:/etc/nginx/ssl:ro
+#      - ./docker/nginx-ssl-${NGINX_VERSION}/etc/snippets:/etc/nginx/snippets:ro
+#    hostname: ${PROJECT_DOMAIN}
+#    networks:
+#      default:
+#      dev-front-net:
+#        aliases:
+#          - ${PROJECT_DOMAIN}
+#    expose:
+#      - 443
+#    labels:
+#      - traefik.enable=true
+#      - traefik.docker.network=dev-front-net
+#      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-nginx-ssl.service=${COMPOSE_PROJECT_NAME}-nginx-ssl
+#      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-nginx-ssl.entrypoints=https
+#      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-nginx-ssl.tls=true
+#      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-nginx-ssl.rule=Host("${PROJECT_DOMAIN}")
+#      - traefik.http.services.${COMPOSE_PROJECT_NAME}-nginx-ssl.loadbalancer.server.port=443
+#      - traefik.http.services.${COMPOSE_PROJECT_NAME}-nginx-ssl.loadbalancer.server.scheme=https
+
+#  varnish:
+#    restart: 'no'
+#    image: varnish:${VARNISH_VERSION}
+#    depends_on:
+#      - nginx
+#    volumes:
+#      - ./docker/varnish-${VARNISH_VERSION}/etc/varnish.vcl:/etc/varnish/default.vcl:ro
+#    tmpfs:
+#      - /var/lib/varnish:exec
+#    expose:
+#      - 80
+#      - 8443
+#    environment:
+#      VARNISH_SIZE: ${VARNISH_SIZE}
+#    hostname: varnish.${PROJECT_DOMAIN}
+#    networks:
+#      dev-front-net:
+#        aliases:
+#          - varnish.${PROJECT_DOMAIN}
+#    labels:
+#      - traefik.enable=true
+#      - traefik.docker.network=dev-front-net
+#      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-varnish.service=${COMPOSE_PROJECT_NAME}-varnish
+#      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-varnish.entrypoints=http
+#      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-varnish.rule=Host("${PROJECT_DOMAIN}")
+#      - traefik.http.services.${COMPOSE_PROJECT_NAME}-varnish.loadbalancer.server.port=80
+
+  php-fpm:
+    restart: 'no'
+    build:
+      context: ./docker/php-fpm-${PHP_VERSION}
+      dockerfile: Dockerfile
+      args:
+        USER_ID: ${USER_ID}
+        GROUP_ID: ${GROUP_ID}
+        TAG: ${PHP_VERSION}
+        PHP_COMPOSER_VERSION: ${PHP_COMPOSER_VERSION:-2.1.6}
+    environment:
+      PHP_IDE_CONFIG: "serverName=${PROJECT_DOMAIN}"
+      XDEBUG_MODE: "debug"
+    expose:
+      - 9000
+    volumes:
+      - ./${CODE_PATH}:/var/www/public:rw
+      - ./docker/php-fpm-${PHP_VERSION}/etc/php.ini:/usr/local/etc/php/php.ini:ro
+      - ./docker/php-fpm-${PHP_VERSION}/etc/php-fpm.conf:/usr/local/etc/php-fpm.d/www.conf:ro
+      - ${HOME}/dev/.composer:/var/www/.composer
+    networks:
+      default:
+
+  mysql:
+    restart: 'no'
+    image: mysql:${MYSQL_VERSION}
+    volumes:
+      - mysql:/var/lib/mysql:rw
+      - ./docker/mysql/etc/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+    expose:
+      - 3306
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    hostname: mysql.${PROJECT_DOMAIN}
+    networks:
+      default:
+        aliases:
+          - mysql.${PROJECT_DOMAIN}
+    cap_add:
+      - SYS_NICE  # CAP_SYS_NICE
+
+  elasticsearch:
+    restart: 'no'
+    image: elasticsearch:${ELASTIC_SEARCH_VERSION}
+    expose:
+      - 9200
+      - 9300
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch:/usr/share/elasticsearch/data:rw
+    hostname: elasticsearch.${PROJECT_DOMAIN}
+    networks:
+      default:
+        aliases:
+          - elasticsearch.${PROJECT_DOMAIN}
+
+  mailhog:
+    restart: 'no'
+    image: mailhog/mailhog:v${MAILHOG_VERSION}
+    expose:
+      - 1025
+      - 8025
+    hostname: mailhog.${PROJECT_DOMAIN}
+    networks:
+      default:
+      dev-front-net:
+        aliases:
+          - mailhog.${PROJECT_DOMAIN}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dev-front-net
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-mailhog.service=${COMPOSE_PROJECT_NAME}-mailhog
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-mailhog.entrypoints=http_8025
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-mailhog.rule=Host("${PROJECT_DOMAIN}")
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}-mailhog.loadbalancer.server.port=8025
+
+  adminer:
+    image: adminer:${ADMINER_VERSION}
+    restart: 'no'
+    environment:
+      - "ADMINER_DEFAULT_SERVER=mysql.${PROJECT_DOMAIN}"
+    networks:
+      default:
+      dev-front-net:
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dev-front-net
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-adminer.service=${COMPOSE_PROJECT_NAME}-adminer
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-adminer.entrypoints=http_8080
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-adminer.rule=Host("${PROJECT_DOMAIN}")
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}-adminer.loadbalancer.server.port=8080
+
+#  phpmyadmin:
+#    image: phpmyadmin/phpmyadmin:5.1
+#    environment:
+#      - VIRTUAL_HOST=${PROJECT_DOMAIN}
+#      - PMA_HOST=mysql
+#      - PMA_USER=${MYSQL_USER}
+#      - PMA_PASSWORD=${MYSQL_PASSWORD}
+#    networks:
+#      default:
+#      dev-front-net:
+#    labels:
+#      - traefik.enable=true
+#      - traefik.docker.network=dev-front-net
+#      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-phpmyadmin.entrypoints=http_8081
+#      - traefik.http.routers.${COMPOSE_PROJECT_NAME}-phpmyadmin.rule=Host("${PROJECT_DOMAIN}")
+
+#
+#  redis:
+#    image: redis:${REDIS_VERSION}
+#    volumes:
+#      - ./docker/redis/${REDIS_VERSION}/redis.conf:/redis.conf:ro
+#      - ./data/redis:/data:rw
+#    networks:
+#      default:
+#        aliases:
+#          - redis.${PROJECT_DOMAIN}
+#    expose:
+#      - 6379
+#    command: ["redis-server", "/redis.conf"]
+#
+#  memcached:
+#    image: memcached:${MEMCACHED_VERSION}
+#    networks:
+#      default:
+#        aliases:
+#          - memcached.${PROJECT_DOMAIN}
+#    expose:
+#      - 11211
+#    command: ["-m", "128", "-c", "512", "-n", "128", "-f", "1.1", "-L"]
+#
+#  rabbitmq:
+#    image: rabbitmq:${RABBITMQ_VERSION}-management
+#    volumes:
+#      - ./docker/rabbitmq/${RABBITMQ_VERSION}/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+#      - ./data/rabbitmq/${RABBITMQ_VERSION}:/var/lib/rabbitmq:rw
+#      - ${LOG_PATH}/rabbitmq:/var/log/rabbitmq/log/:rw
+#    networks:
+#      default:
+#        aliases:
+#          - rabbitmq.${PROJECT_DOMAIN}
+#    expose:
+#      - 5672
+#      - 5673
+#      - 15672
+#

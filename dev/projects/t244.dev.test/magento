@@ -1,0 +1,5 @@
+#!/bin/bash
+
+#docker-compose exec --env XDEBUG_SESSION=1 php-fpm php -d memory_limit=-1 bin/magento "$@"
+docker-compose exec php-fpm php -d memory_limit=-1 bin/magento "$@"
+

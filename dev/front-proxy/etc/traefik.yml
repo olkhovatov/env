@@ -1,0 +1,44 @@
+entryPoints:
+  http:
+    address: ":80"
+  http_8080:
+    address: ":8080"
+  http_8081:
+    address: ":8081"
+  http_8025:
+    address: ":8025"
+
+  https:
+    address: ":443"
+
+#http:
+#  routers:
+#    http-catchall:
+#      rule: hostregexp(`{host:.+}`)
+#      entrypoints:
+#      - http
+#      middlewares:
+#      - redirect-to-https
+#  middlewares:
+#    redirect-to-https:
+#      redirectScheme:
+#        scheme: https
+#        permanent: false
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+  file:
+    filename: /certs.yml
+
+log:
+  level: DEBUG
+
+api:
+  dashboard: true
+
+serversTransport:
+  insecureSkipVerify: true
+#  rootCAs:
+#    - /certs/ca.crt

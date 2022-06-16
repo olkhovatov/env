@@ -1,0 +1,13 @@
+/etc/docker/daemon.json
+{
+  "default-address-pools":[
+    {"base":"172.30.0.0/16","size":26}
+  ]
+}
+
+
+.bash_profile
+export USER_ID=$(id -u ${USER})
+export GROUP_ID=$(id -g ${USER})
+
+https://github.com/BenMorel/dev-certificates.git

@@ -1,0 +1,35 @@
+version: '3.7'
+networks:
+  default:
+    name: ${DEV_FRONT_NET_NAME}
+
+services:
+  traefik:
+    image: traefik:${TRAEFIK_VERSION}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - 80:80
+      - 443:443 
+      - 8080:8080 
+      - 8081:8081 
+      - 8025:8025 
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./etc/traefik.yml:/traefik.yml:ro
+      - ./etc/certs.yml:/certs.yml:ro
+      - ./etc/certs/:/certs/:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.traefik.entrypoints=http
+      - traefik.http.routers.traefik.rule=Host("${TRAEFIK_DASHBOARD_HOST}")
+      - traefik.http.routers.traefik.service=api@internal
+      - traefik.http.routers.traefik-ssl.rule=Host("${TRAEFIK_DASHBOARD_HOST}")
+      - traefik.http.routers.traefik-ssl.entrypoints=https
+      - traefik.http.routers.traefik-ssl.tls=true
+      - traefik.http.routers.traefik-ssl.service=api@internal
+    networks:
+      default:
+
